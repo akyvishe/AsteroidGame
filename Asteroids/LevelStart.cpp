@@ -34,7 +34,7 @@ void LevelStart::OnRender(System *system)
 	system->GetGame()->RenderBackgroundOnly(graphics);
 
 	char levelStartText[256];
-	sprintf(levelStartText, "Level %d", level_);
+	sprintf_s(levelStartText, "Level %d", level_);
 	int textWidth = fontEngine->CalculateTextWidth(levelStartText, FontEngine::FONT_TYPE_LARGE);
 	int textX = (800 - textWidth) / 2;
 	int textY = (600 - 48) / 2;

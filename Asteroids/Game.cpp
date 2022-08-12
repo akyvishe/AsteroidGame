@@ -23,6 +23,8 @@ Game::Game() :
 	camera_->SetFrustum(800.0f, 600.0f, -100.0f, 100.0f);
 	background_ = new Background(800.0f, 600.0f);
 	collision_ = new Collision();
+	//bullet_ = nullptr;
+	bullettime_ = std::chrono::high_resolution_clock::now();
 }
 
 Game::~Game()
@@ -30,10 +32,11 @@ Game::~Game()
 	delete camera_;
 	delete background_;
 	delete player_;
-	DeleteBullet();
+	DeleteAllBullets();
 	DeleteAllAsteroids();
 	DeleteAllExplosions();
 	delete collision_;
+
 }
 
 void Game::Update(System *system)
@@ -69,9 +72,11 @@ void Game::RenderEverything(Graphics *graphics)
 		(*asteroidIt)->Render(graphics);
 	}
 
-	if (bullet_)
+	for (BulletList::const_iterator bulletIt = bullets_.begin(), end = bullets_.end();
+		bulletIt != end;
+		++bulletIt)
 	{
-		bullet_->Render(graphics);
+		(*bulletIt)->Render(graphics);
 	}
 
 	for (ExplosionList::const_iterator explosionIt = explosions_.begin(),
@@ -86,6 +91,7 @@ void Game::RenderEverything(Graphics *graphics)
 void Game::InitialiseLevel(int numAsteroids)
 {
 	DeleteAllAsteroids();
+	DeleteAllBullets();
 	DeleteAllExplosions();
 
 	SpawnPlayer();
@@ -105,7 +111,7 @@ bool Game::IsGameOver() const
 void Game::DoCollision(GameEntity *a, GameEntity *b)
 {
 	Ship *player = static_cast<Ship *>(a == player_ ? a : (b == player_ ? b : 0));
-	Bullet *bullet = static_cast<Bullet *>(a == bullet_ ? a : (b == bullet_ ? b : 0));
+	Bullet* bullet = static_cast<Bullet*>( IsBullet(a) ? a : (IsBullet(b) ? b : 0));
 	Asteroid *asteroid = static_cast<Asteroid *>(IsAsteroid(a) ? a : (IsAsteroid(b) ? b : 0));
 
 	if (player && asteroid)
@@ -117,7 +123,8 @@ void Game::DoCollision(GameEntity *a, GameEntity *b)
 	if (bullet && asteroid)
 	{
 		AsteroidHit(asteroid);
-		DeleteBullet();
+		bullet->DisableCollisions();
+		bullets_.remove(bullet);
 	}
 }
 
@@ -187,20 +194,37 @@ void Game::UpdateAsteroids(System *system)
 
 void Game::UpdateBullet(System *system)
 {
-	if (bullet_)
+	for (BulletList::const_iterator bulletIt = bullets_.begin(), end = bullets_.end();
+		bulletIt != end;
+		++bulletIt)
 	{
-		bullet_->Update(system);
-		WrapEntity(bullet_);
+		(*bulletIt)->Update(system);
+		if(WrapEntity(*bulletIt))
+			break;
 	}
 }
 
-void Game::WrapEntity(GameEntity *entity) const
+bool Game::IsModuloReq(XMFLOAT3 &entityPosition)
+{
+	return (entityPosition.x < -400 || entityPosition.x > 400 ||
+		entityPosition.y < -300 || entityPosition.y > 300);
+}
+
+bool Game::WrapEntity(GameEntity *entity)
 {
 	XMFLOAT3 entityPosition;
 	XMStoreFloat3(&entityPosition, entity->GetPosition());
+
+	if (IsModuloReq(entityPosition) && IsBullet(entity))
+	{
+		entity->DisableCollisions();
+		bullets_.remove((Bullet*)entity);
+		return true;
+	}
 	entityPosition.x = Maths::WrapModulo(entityPosition.x, -400.0f, 400.0f);
 	entityPosition.y = Maths::WrapModulo(entityPosition.y, -300.0f, 300.0f);
 	entity->SetPosition(XMLoadFloat3(&entityPosition));
+	return false;
 }
 
 void Game::DeleteAllAsteroids()
@@ -231,15 +255,31 @@ void Game::DeleteAllExplosions()
 
 void Game::SpawnBullet(XMVECTOR position, XMVECTOR direction)
 {
-	DeleteBullet();
-	bullet_ = new Bullet(position, direction);
-	bullet_->EnableCollisions(collision_, 3.0f);
+	//DeleteBullet();
+	auto now = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - bullettime_);
+	if (duration.count() > 500)
+	{
+		Bullet* bullet = new Bullet(position, direction);
+		bullet->EnableCollisions(collision_, 3.0f);
+
+		bullets_.push_back(bullet);
+		bullettime_ = now;
+	}
 }
 
-void Game::DeleteBullet()
+void Game::DeleteAllBullets()
 {
-	delete bullet_;
-	bullet_ = 0;
+	//delete bullet_;
+	//bullet_ = 0;
+	for (BulletList::iterator bulletIt = bullets_.begin(), end = bullets_.end();
+		bulletIt != end;
+		++bulletIt)
+	{
+		(*bulletIt)->DisableCollisions();
+		delete* bulletIt;
+	}
+	bullets_.clear();
 }
 
 void Game::SpawnAsteroids(int numAsteroids)
@@ -269,10 +309,15 @@ void Game::SpawnAsteroidAt(XMVECTOR position, int size)
 	asteroids_.push_back(asteroid);
 }
 
-bool Game::IsAsteroid(GameEntity *entity) const
+bool Game::IsAsteroid(GameEntity* entity) const
 {
 	return (std::find(asteroids_.begin(),
-		asteroids_.end(), entity) != asteroids_.end()); 
+		asteroids_.end(), entity) != asteroids_.end());
+}
+bool Game::IsBullet(GameEntity* entity) const
+{
+	return (std::find(bullets_.begin(),
+		bullets_.end(), entity) != bullets_.end());
 }
 
 void Game::AsteroidHit(Asteroid *asteroid)

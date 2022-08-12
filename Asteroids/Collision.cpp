@@ -58,6 +58,7 @@ void Collision::DisableCollider(Collider *collider)
 
 void Collision::DoCollisions(Game *game) const
 {
+	bool flag = false;
 	for (ColliderList::const_iterator colliderAIt = colliders_.begin(), end = colliders_.end();
 		colliderAIt != end;
 		++colliderAIt)
@@ -70,9 +71,14 @@ void Collision::DoCollisions(Game *game) const
 			if (CollisionTest(colliderA, colliderB))
 			{
 				game->DoCollision(colliderA->entity, colliderB->entity);
+				flag = true;
+				break;
 			}
 		}
+		if (flag)
+			break;
 	}
+
 }
 
 bool Collision::CollisionTest(Collider *a, Collider *b)
