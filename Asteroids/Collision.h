@@ -32,7 +32,11 @@ private:
 
 	static bool CollisionTest(Collider *a, Collider *b);
 
-	ColliderList colliders_;
+	ColliderList bulletColliders_;
+	ColliderList astroidColliders_;
+	ColliderList ufoColliders_;
+	Collider*	 playerCollider_;
+	//ColliderList	 colliders_;
 
 };
 

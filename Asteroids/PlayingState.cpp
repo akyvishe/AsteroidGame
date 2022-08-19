@@ -1,6 +1,9 @@
 #include "PlayingState.h"
 #include "System.h"
 #include "Game.h"
+#include <stdio.h>
+#include <fstream>
+#include <iostream>
 
 PlayingState::PlayingState()
 {
@@ -30,6 +33,27 @@ void PlayingState::OnUpdate(System *system)
 	}
 	else if (game->IsGameOver())
 	{
+		int score = game->GetScore();
+		int highscore=0;
+
+		std::fstream file;
+		FILE* fp = NULL;
+		fp = fopen("score.txt", "r");
+		if (fp)
+		{
+			fscanf(fp, "%d", &highscore);
+			fclose(fp);
+		}
+
+		if (highscore < score)
+			highscore = score;
+
+		fp = fopen("score.txt", "w");
+		if (fp) {
+			fprintf(fp, "%d\n", highscore);
+			fprintf(fp, "%d\n", score);
+			fclose(fp);
+		}
 		system->SetNextState("GameOver");
 	}
 }

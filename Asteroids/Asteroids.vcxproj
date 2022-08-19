@@ -91,6 +91,7 @@
     <ClCompile Include="ImmediateMode.cpp" />
     <ClCompile Include="Maths.cpp" />
     <ClCompile Include="MatrixBuffer.cpp" />
+    <ClCompile Include="Mouse.cpp" />
     <ClCompile Include="OrthoCamera.cpp" />
     <ClCompile Include="Collider.cpp" />
     <ClCompile Include="Collision.cpp" />
@@ -113,6 +114,7 @@
     <ClCompile Include="SpriteFontRenderer.cpp" />
     <ClCompile Include="StateLibrary.cpp" />
     <ClCompile Include="System.cpp" />
+    <ClCompile Include="Ufo.cpp" />
     <ClCompile Include="VertexShader.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -129,6 +131,7 @@
     <ClInclude Include="ImmediateModeVertex.h" />
     <ClInclude Include="Maths.h" />
     <ClInclude Include="MatrixBuffer.h" />
+    <ClInclude Include="Mouse.h" />
     <ClInclude Include="OrthoCamera.h" />
     <ClInclude Include="Collider.h" />
     <ClInclude Include="Collision.h" />
@@ -152,6 +155,7 @@
     <ClInclude Include="SpriteFontVertex.h" />
     <ClInclude Include="StateLibrary.h" />
     <ClInclude Include="System.h" />
+    <ClInclude Include="Ufo.h" />
     <ClInclude Include="VertexShader.h" />
   </ItemGroup>
   <ItemGroup>

@@ -4,19 +4,27 @@
 #include "Background.h"
 #include "Ship.h"
 #include "Asteroid.h"
+#include "Ufo.h"
 #include "Explosion.h"
 #include "Keyboard.h"
+#include "Mouse.h"
 #include "Random.h"
 #include "Maths.h"
 #include "Bullet.h"
 #include "Collision.h"
 #include <algorithm>
+#include "FontEngine.h"
+#include "Graphics.h"
+#include <string>
 
 Game::Game() :
 	camera_(0),
 	background_(0),
 	player_(0),
-	collision_(0)
+	collision_(0),
+	score_(0),
+	delay_(0),
+	scoreCntrToActivePower_(0)
 {
 	camera_ = new OrthoCamera();
 	camera_->SetPosition(XMFLOAT3(0.0f, 0.0f, 0.0f));
@@ -35,6 +43,7 @@ Game::~Game()
 	DeleteAllBullets();
 	DeleteAllAsteroids();
 	DeleteAllExplosions();
+	if(collision_)
 	delete collision_;
 
 }
@@ -43,8 +52,14 @@ void Game::Update(System *system)
 {
 	UpdatePlayer(system);
 	UpdateAsteroids(system);
+	UpdateUfos(system);
 	UpdateBullet(system);
 	UpdateCollisions();
+	if (scoreCntrToActivePower_ > 4 && ShipState::POWER != player_->GetState())
+	{
+		player_->SetState(ShipState::POWER);
+		scoreCntrToActivePower_ = 0;
+	}
 }
 
 void Game::RenderBackgroundOnly(Graphics *graphics)
@@ -71,6 +86,13 @@ void Game::RenderEverything(Graphics *graphics)
 	{
 		(*asteroidIt)->Render(graphics);
 	}
+	for (UfoList::const_iterator ufoIt = ufos_.begin(),
+		end = ufos_.end();
+		ufoIt != end;
+		++ufoIt)
+	{
+		(*ufoIt)->Render(graphics);
+	}
 
 	for (BulletList::const_iterator bulletIt = bullets_.begin(), end = bullets_.end();
 		bulletIt != end;
@@ -86,21 +108,43 @@ void Game::RenderEverything(Graphics *graphics)
 	{
 		(*explosionIt)->Render(graphics);
 	}
+
+	//to draw score and highscore
+	FontEngine* fontengine = graphics->GetFontEngine();
+
+	std::string scorestr = "Score: ";
+	std::string score = std::to_string(score_);
+	std::string result = scorestr + score;
+	fontengine->DrawTextA(result, 5, 5, 0xffffffff, FontEngine::FONT_TYPE_MEDIUM);
+	//fontengine->DrawTextA()
+}
+
+int Game::GetScore() const
+{
+	return score_;
 }
 
 void Game::InitialiseLevel(int numAsteroids)
 {
+	//todo: Need exact location to reset the score
+	//temporary resetting the score
+	if(numAsteroids==1)
+		score_ = 0;
+	scoreCntrToActivePower_ = 0;
 	DeleteAllAsteroids();
 	DeleteAllBullets();
 	DeleteAllExplosions();
 
 	SpawnPlayer();
+	delay_ = 150;
 	SpawnAsteroids(numAsteroids);
+	SpawnUfos(numAsteroids);
+	player_->SetState(ShipState::INIT);
 }
 
 bool Game::IsLevelComplete() const
 {
-	return (asteroids_.empty() && explosions_.empty());
+	return (asteroids_.empty() && explosions_.empty() && ufos_.empty());
 }
 
 bool Game::IsGameOver() const
@@ -110,13 +154,25 @@ bool Game::IsGameOver() const
 
 void Game::DoCollision(GameEntity *a, GameEntity *b)
 {
-	Ship *player = static_cast<Ship *>(a == player_ ? a : (b == player_ ? b : 0));
+	//comment this code because IsAsteroid function iterating whole list to check its type, instead of this we check with its type
+	/*Ship *player = static_cast<Ship *>(a == player_ ? a : (b == player_ ? b : 0));
 	Bullet* bullet = static_cast<Bullet*>( IsBullet(a) ? a : (IsBullet(b) ? b : 0));
 	Asteroid *asteroid = static_cast<Asteroid *>(IsAsteroid(a) ? a : (IsAsteroid(b) ? b : 0));
+	Ufo *asteroid = static_cast<Ufo *>(IsAsteroid(a) ? a : (IsAsteroid(b) ? b : 0));*/
+
+	Ship* player = static_cast<Ship *>( a->GetEntityType() == EntityType::PLAYER ? a : ((b->GetEntityType() == EntityType::PLAYER) ? b : 0));
+	Bullet* bullet = static_cast<Bullet*> (a->GetEntityType() == EntityType::BULLET ? a : ((b->GetEntityType() == EntityType::BULLET) ? b : 0));
+	Asteroid* asteroid = static_cast<Asteroid*>(a->GetEntityType() == EntityType::ASTEROID ? a : ((b->GetEntityType() == EntityType::ASTEROID) ? b : 0));
+	Ufo* ufo = static_cast<Ufo*>(a->GetEntityType() == EntityType::UFO ? a : ((b->GetEntityType() == EntityType::UFO) ? b : 0));
 
 	if (player && asteroid)
 	{
 		AsteroidHit(asteroid);
+		DeletePlayer();
+	}
+	if (player && ufo)
+	{
+		DeleteUfo(ufo);
 		DeletePlayer();
 	}
 
@@ -125,6 +181,17 @@ void Game::DoCollision(GameEntity *a, GameEntity *b)
 		AsteroidHit(asteroid);
 		bullet->DisableCollisions();
 		bullets_.remove(bullet);
+		score_++;
+		scoreCntrToActivePower_++;
+	}
+
+	if (bullet && ufo)
+	{
+		DeleteUfo(ufo);
+		bullet->DisableCollisions();
+		bullets_.remove(bullet);
+		score_++;
+		scoreCntrToActivePower_++;
 	}
 }
 
@@ -132,13 +199,17 @@ void Game::SpawnPlayer()
 {
 	DeletePlayer();
 	player_ = new Ship();
+	player_->SetEntityType(EntityType::PLAYER);
 	player_->EnableCollisions(collision_, 10.0f);
 }
 
 void Game::DeletePlayer()
 {
-	delete player_;
-	player_ = 0;
+	if (player_ && player_->ReduceLife())
+	{
+		delete player_;
+		player_ = 0;
+	}
 }
 
 void Game::UpdatePlayer(System *system)
@@ -147,9 +218,10 @@ void Game::UpdatePlayer(System *system)
 		return;
 
 	Keyboard *keyboard = system->GetKeyboard();
+	Mouse *mouse = system->GetMouse();
 
 	float acceleration = 0.0f;
-	if (keyboard->IsKeyHeld(VK_UP) || keyboard->IsKeyHeld('W'))
+	if (keyboard->IsKeyHeld(VK_UP) || keyboard->IsKeyHeld('W') || mouse->IsRClicked())
 	{
 		acceleration = 1.0f;
 	}
@@ -159,11 +231,11 @@ void Game::UpdatePlayer(System *system)
 	}
 
 	float rotation = 0.0f;
-	if (keyboard->IsKeyHeld(VK_RIGHT) || keyboard->IsKeyHeld('D'))
+	if (keyboard->IsKeyHeld(VK_RIGHT) || keyboard->IsKeyHeld('D') || mouse->IsMoveRight())
 	{
 		rotation = -1.0f;
 	}
-	else if (keyboard->IsKeyHeld(VK_LEFT) || keyboard->IsKeyHeld('A'))
+	else if (keyboard->IsKeyHeld(VK_LEFT) || keyboard->IsKeyHeld('A') || mouse->IsMoveLeft())
 	{
 		rotation = 1.0f;
 	}
@@ -172,11 +244,38 @@ void Game::UpdatePlayer(System *system)
 	player_->Update(system);
 	WrapEntity(player_);
 
-	if (keyboard->IsKeyPressed(VK_SPACE))
+
+	auto now = std::chrono::high_resolution_clock::now();
+	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - bullettime_);
+	if (duration.count() > 250 && (keyboard->IsKeyPressed(VK_SPACE) || mouse->IsLClick()))
 	{
-		XMVECTOR playerForward = player_->GetForwardVector();
-		XMVECTOR bulletPosition = player_->GetPosition() + playerForward * 10.0f;
-		SpawnBullet(bulletPosition, playerForward);
+		bullettime_ = now;
+		//bullet will generate only if player in  normal state
+		if (ShipState::NORMAL <= player_->GetState())
+		{
+			XMVECTOR playerForward = player_->GetForwardVector();
+
+			XMVECTOR bulletPosition = player_->GetPosition();//+playerForward * 10.0f;
+
+			XMVECTOR newVec = bulletPosition + playerForward * 10.0f;
+
+			SpawnBullet(newVec, playerForward);
+ 
+			if (ShipState::POWER == player_->GetState())
+			{
+				float angle = player_->GetRotation();
+
+				XMMATRIX rotationMatrixRight = XMMatrixRotationZ(angle + 0.3f);
+				XMVECTOR newRightForward = XMVector3TransformNormal(XMVectorSet(0.f, 1.0f, 0.0f, 0.0f), rotationMatrixRight);
+				newRightForward = XMVector3Normalize(newRightForward);
+				SpawnBullet(newVec, newRightForward);
+
+				XMMATRIX rotationMatrixLeft = XMMatrixRotationZ(angle - 0.3f);
+				XMVECTOR newLeftForward = XMVector3TransformNormal(XMVectorSet(0.f, 1.0f, 0.0f, 0.0f), rotationMatrixLeft);
+				newLeftForward = XMVector3Normalize(newLeftForward);
+				SpawnBullet(newVec, newLeftForward);
+			}
+		}
 	}
 }
 
@@ -189,6 +288,18 @@ void Game::UpdateAsteroids(System *system)
 	{
 		(*asteroidIt)->Update(system);
 		WrapEntity(*asteroidIt);
+	}
+}
+
+void Game::UpdateUfos(System *system)
+{
+	for (UfoList::const_iterator ufoIt = ufos_.begin(),
+		end = ufos_.end();
+		ufoIt != end;
+	++ufoIt)
+	{
+		(*ufoIt)->Update(system);
+		WrapEntity(*ufoIt);
 	}
 }
 
@@ -256,16 +367,10 @@ void Game::DeleteAllExplosions()
 void Game::SpawnBullet(XMVECTOR position, XMVECTOR direction)
 {
 	//DeleteBullet();
-	auto now = std::chrono::high_resolution_clock::now();
-	auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - bullettime_);
-	if (duration.count() > 500)
-	{
-		Bullet* bullet = new Bullet(position, direction);
-		bullet->EnableCollisions(collision_, 3.0f);
-
-		bullets_.push_back(bullet);
-		bullettime_ = now;
-	}
+	Bullet* bullet = new Bullet(position, direction);
+	bullet->SetEntityType(EntityType::BULLET);
+	bullet->EnableCollisions(collision_, 3.0f);
+	bullets_.push_back(bullet);
 }
 
 void Game::DeleteAllBullets()
@@ -280,6 +385,33 @@ void Game::DeleteAllBullets()
 		delete* bulletIt;
 	}
 	bullets_.clear();
+}
+
+void Game::SpawnUfos(int numUfos)
+{
+	float halfWidth = 800.0f * 0.5f;
+	float halfHeight = 600.0f * 0.5f;
+	for (int i = 0; i < numUfos/2; i++)
+	{
+		float x = Random::GetFloat(-halfWidth, halfWidth);
+		float y = Random::GetFloat(-halfHeight, halfHeight);
+		XMVECTOR position = XMVectorSet(x, y, 0.0f, 0.0f);
+		SpawnUfoAt(position, 3);
+	}
+}
+void Game::SpawnUfoAt(XMVECTOR position, int size)
+{
+	const float MAX_UFO_SPEED = 2.0f;
+
+	float angle = Random::GetFloat(Maths::TWO_PI);
+	XMMATRIX randomRotation = XMMatrixRotationZ(angle);
+	XMVECTOR velocity = XMVectorSet(0.0f, Random::GetFloat(MAX_UFO_SPEED), 0.0f, 0.0f);
+	velocity = XMVector3TransformNormal(velocity, randomRotation);
+
+	Ufo* ufo = new Ufo(position, velocity, size);
+	ufo->SetEntityType(EntityType::UFO);
+	ufo->EnableCollisions(collision_, size * 5.0f);
+	ufos_.push_back((Ufo*)ufo);
 }
 
 void Game::SpawnAsteroids(int numAsteroids)
@@ -305,6 +437,7 @@ void Game::SpawnAsteroidAt(XMVECTOR position, int size)
 	velocity = XMVector3TransformNormal(velocity, randomRotation);
 
 	Asteroid *asteroid = new Asteroid(position, velocity, size);
+	asteroid->SetEntityType(EntityType::ASTEROID);
 	asteroid->EnableCollisions(collision_, size * 5.0f);
 	asteroids_.push_back(asteroid);
 }
@@ -335,11 +468,20 @@ void Game::AsteroidHit(Asteroid *asteroid)
 
 void Game::DeleteAsteroid(Asteroid *asteroid)
 {
+	asteroid->DisableCollisions();
 	asteroids_.remove(asteroid);
 	delete asteroid;
 }
 
+void Game::DeleteUfo(Ufo *ufo)
+{
+	ufo->DisableCollisions();
+	ufos_.remove(ufo);
+	delete ufo;
+}
+
 void Game::UpdateCollisions()
 {
-	collision_->DoCollisions(this);
+	if(ShipState::NORMAL <= player_->GetState())
+		collision_->DoCollisions(this);
 }

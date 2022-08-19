@@ -5,6 +5,7 @@
 #include "AssetLoader.h"
 #include "StateLibrary.h"
 #include "Keyboard.h"
+#include "Mouse.h"
 #include "GameState.h"
 #include "Game.h"
 
@@ -17,6 +18,7 @@ System::System(HINSTANCE hInstance) :
 	assetLoader_(0),
 	stateLibrary_(0),
 	keyboard_(0),
+	mouse_(0),
 	currentState_(0),
 	nextState_(0),
 	game_(0)
@@ -35,6 +37,7 @@ void System::Initialise()
 	assetLoader_ = new AssetLoader();
 	stateLibrary_ = new StateLibrary();
 	keyboard_ = new Keyboard();
+	mouse_ = new Mouse();
 	game_ = new Game();
 }
 
@@ -65,6 +68,9 @@ void System::Terminate()
 
 	delete keyboard_;
 	keyboard_ = 0;
+
+	delete mouse_;
+	mouse_ = 0;
 
 	delete stateLibrary_;
 	stateLibrary_ = 0;
@@ -97,9 +103,14 @@ AssetLoader *System::GetAssetLoader() const
 	return assetLoader_;
 }
 
-Keyboard *System::GetKeyboard() const
+Keyboard* System::GetKeyboard() const
 {
 	return keyboard_;
+}
+
+Mouse* System::GetMouse() const
+{
+	return mouse_;
 }
 
 Game *System::GetGame() const
@@ -135,6 +146,18 @@ void System::ProcessMessageQueue()
 			quit_ = true;
 			break;
 
+		case WM_LBUTTONDOWN:
+			mouse_->SetLBtnClicked();
+			break;
+
+		case WM_RBUTTONDOWN:
+			mouse_->SetRBtnClicked();
+			break;
+
+		case WM_RBUTTONUP:
+			mouse_->SetRBtnReleased();
+			break;
+
 		default:
 			; // Do nothing
 		}
@@ -163,6 +186,7 @@ void System::Update()
 {
 	assetLoader_->Update();
 	keyboard_->Update();
+	mouse_->Update();
 	currentState_->OnUpdate(this);
 	Sleep(1);
 }

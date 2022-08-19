@@ -10,9 +10,12 @@ class Graphics;
 class Collision;
 class Collider;
 
+enum class EntityType { PLAYER, BULLET, ASTEROID, UFO, OTHER };//we can add UFO or other enemies if they have diff characteristics
+
 class GameEntity
 {
 public:
+
 	GameEntity();
 	virtual ~GameEntity();
 
@@ -24,6 +27,8 @@ public:
 
 	void EnableCollisions(Collision *collisionSystem, float radius);
 	void DisableCollisions();
+	EntityType GetEntityType();
+	void SetEntityType(EntityType etype);
 
 private:
 
@@ -32,7 +37,8 @@ private:
 
 	XMFLOAT3 position_;
 	Collision *collisionSystem_;
-	Collider *collider_;
+	EntityType entityType_;
+	Collider* collider_;
 
 };
 

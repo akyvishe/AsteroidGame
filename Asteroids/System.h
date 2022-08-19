@@ -11,6 +11,7 @@ class Graphics;
 class AssetLoader;
 class StateLibrary;
 class Keyboard;
+class Mouse;
 class Game;
 
 class System
@@ -28,6 +29,7 @@ public:
 	Graphics *GetGraphics() const;
 	AssetLoader *GetAssetLoader() const;
 	Keyboard *GetKeyboard() const;
+	Mouse *GetMouse() const;
 	Game *GetGame() const;
 
 	void SetNextState(const std::string &stateName);
@@ -51,6 +53,7 @@ private:
 	AssetLoader *assetLoader_;
 	StateLibrary *stateLibrary_;
 	Keyboard *keyboard_;
+	Mouse *mouse_;
 
 	GameState *currentState_;
 	GameState *nextState_;

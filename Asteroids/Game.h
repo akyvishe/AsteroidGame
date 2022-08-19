@@ -12,6 +12,7 @@ class Background;
 class Ship;
 class Bullet;
 class Asteroid;
+class Ufo;
 class Explosion;
 class Collision;
 class System;
@@ -27,6 +28,7 @@ public:
 	void Update(System *system);
 	void RenderBackgroundOnly(Graphics *graphics);
 	void RenderEverything(Graphics *graphics);
+	int GetScore() const;
 
 	void InitialiseLevel(int numAsteroids);
 	bool IsLevelComplete() const;
@@ -39,6 +41,7 @@ private:
 	void operator=(const Game &);
 
 	typedef std::list<Asteroid *> AsteroidList;
+	typedef std::list<Ufo *> UfoList;
 	typedef std::list<Explosion *> ExplosionList;
 	typedef std::list<Bullet *> BulletList;
 
@@ -47,6 +50,7 @@ private:
 
 	void UpdatePlayer(System *system);
 	void UpdateAsteroids(System *system);
+	void UpdateUfos(System* system);
 	void UpdateBullet(System *system);
 	bool WrapEntity(GameEntity *entity) ;
 	bool IsModuloReq(XMFLOAT3& entityPosition);
@@ -58,14 +62,21 @@ private:
 	void DeleteAllBullets();
 
 	void SpawnAsteroids(int numAsteroids);
+	void SpawnUfos(int numUfos);
+	void SpawnUfoAt(XMVECTOR position, int size);
 	void SpawnAsteroidAt(XMVECTOR position, int size);
 	bool IsAsteroid(GameEntity* entity) const;
 	bool IsBullet(GameEntity* entity) const;
 	void AsteroidHit(Asteroid *asteroid);
 	void DeleteAsteroid(Asteroid *asteroid);
 
+	void DeleteUfo(Ufo* ufo);
+
 	void UpdateCollisions();
 
+	int score_;
+	int delay_;
+	int scoreCntrToActivePower_;
 
 	OrthoCamera *camera_;
 
@@ -73,6 +84,7 @@ private:
 	Ship *player_;
 	BulletList bullets_;
 	AsteroidList asteroids_;
+	UfoList ufos_;
 	ExplosionList explosions_;
 
 	Collision *collision_;

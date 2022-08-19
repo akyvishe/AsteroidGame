@@ -4,7 +4,8 @@
 GameEntity::GameEntity() :
 	position_(XMFLOAT3(0.0f, 0.0f, 0.0f)),
 	collisionSystem_(0),
-	collider_(0)
+	collider_(0),
+	entityType_(EntityType::OTHER)
 {
 }
 
@@ -49,6 +50,17 @@ void GameEntity::DisableCollisions()
 {
 	DestroyCollider();
 }
+
+EntityType GameEntity::GetEntityType()
+{
+	return entityType_;
+}
+
+void GameEntity::SetEntityType(EntityType etype)
+{
+	entityType_ = etype;
+}
+
 
 bool GameEntity::HasValidCollider() const
 {
